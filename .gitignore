@@ -1,4 +1,6 @@
 dist
+train/data
+train/outputs
 .ipynb_checkpoints
 **/*/.ipynb_checkpoints
 */.ipynb_checkpoints

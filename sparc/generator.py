@@ -19,41 +19,6 @@ from transformers import Wav2Vec2Model, HubertModel, WavLMModel
 import torchaudio
 
 
-class PastFCEncoder(torch.nn.Module):
-    '''
-    Autoregressive class in CARGAN
-    https://github.com/descriptinc/cargan/blob/master/cargan/model/condition.py#L6
-    '''
-    def __init__(self, input_len=512, hidden_dim=256, output_dim=128):
-        '''
-        Args:
-            input_len: the number of samples of autoregressive conditioning
-        '''
-        super().__init__()
-
-        model = [
-            torch.nn.Linear(input_len, hidden_dim),
-            torch.nn.LeakyReLU(.1)]
-        for _ in range(3):
-            model.extend([
-                torch.nn.Linear(
-                    hidden_dim,
-                    hidden_dim),
-                torch.nn.LeakyReLU(.1)])
-        model.append(
-            torch.nn.Linear(hidden_dim, output_dim))
-        self.model = torch.nn.Sequential(*model)
-    
-    def forward(self, x):
-        '''
-        Args:
-            x: shape (batch_size, 1, input_len)
-
-        Return:
-            shape (batch_size, output_dim)
-        '''
-        x = x.reshape(x.shape[0], -1)
-        return self.model(x)
         
 class SoftClamp(torch.nn.Module):
     def __init__(self, temp=0.2):
@@ -63,44 +28,6 @@ class SoftClamp(torch.nn.Module):
     
     def forward(self, x):
         return self.tanh(x*self.temp)/self.temp
-
-class SpkEncoder(torch.nn.Module):
-    def __init__(self, init_model, scale=20,input_sr=16000, self_weight=False):
-        super().__init__()
-        self.init_model = init_model
-        self.scale= scale
-        self.input_sr = 16000
-        if 'wavlm' in init_model:
-            self.feature_extractor = WavLMModel.from_pretrained(init_model).feature_extractor
-        else:
-            self.feature_extractor = Wav2Vec2Model.from_pretrained(init_model).feature_extractor
-        
-        if self_weight:
-            self.logit = torch.nn.Sequential(torch.nn.Linear(512, 1),torch.nn.Sigmoid())
-        else:
-            self.logit = None
-        
-            
-    def forward(self,input_values, confidence):
-        if len(input_values.shape)==3:
-            input_values=input_values[:,0]
-        if self.input_sr != 16000:
-            input_values = torchaudio.functional.resample(input_values,self.input_sr,16000)
-        extract_features = self.feature_extractor(input_values*self.scale)
-        extract_features = extract_features.transpose(1, 2)
-        #extract_features = self.spk_fc(extract_features)
-        if self.logit is not None:
-            confidence = self.logit(extract_features).squeeze(-1)
-        else:   
-            len_ = min(extract_features.shape[1], confidence.shape[1])
-            extract_features = extract_features[:,:len_]
-            confidence = confidence[:,:len_]
-        denom = (confidence.sum(1)[:,None])
-        denom[denom==0] = 1
-        outputs= (extract_features*confidence[:,:,None]).sum(1)/denom
-        #outputs= (extract_features*confidence[:,:,None]).mean(1)
-        
-        return outputs
 
 class HiFiGANGenerator(torch.nn.Module):
     """HiFiGAN generator module."""
@@ -129,6 +56,7 @@ class HiFiGANGenerator(torch.nn.Module):
         pitch_offset=50,
         pitch_rescale=0.01,
         pitch_axis=12,
+        **kwargs,
     ):
         """Initialize HiFiGANGenerator module.
 
@@ -303,7 +231,7 @@ class HiFiGANGenerator(torch.nn.Module):
         self.pitch_rescale=pitch_rescale
         self.pitch_axis=pitch_axis
 
-    def forward(self, c, spk_emb=None, ar=None, **kwargs):
+    def forward(self, c, spk_emb=None, **kwargs):
         """Calculate forward propagation.
 
         Args:
