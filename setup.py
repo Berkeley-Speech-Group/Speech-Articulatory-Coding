@@ -23,7 +23,7 @@ setup(
         'torch',
         'torchaudio',
         'transformers',
-        'torchcrepe',
+        'torchcrepe==0.0.23',
         'huggingface-hub',
         'matplotlib',
         'tqdm',
