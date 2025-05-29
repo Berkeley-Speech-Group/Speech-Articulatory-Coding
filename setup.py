@@ -27,7 +27,7 @@ setup(
         'huggingface-hub',
         'matplotlib',
         'tqdm',
-        'penn',
+        'penn==0.0.14',
     ],
     include_package_data=False,  
     license='MIT',  
